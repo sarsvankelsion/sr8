@@ -11,5 +11,11 @@ C:\Temp/
 *.tmp
 sealed-used.json
 /tmp/sealed-used.json
+sealed-room.json
+data/
+frps-wsl.toml
+frpc-room.toml
+Caddyfile.wsltest
+tests/room-autotest.toml
 .DS_Store
 Thumbs.db

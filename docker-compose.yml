@@ -1,8 +1,8 @@
 services:
   frps:
     # Tag pin trong .frp-version. Đổi tag bằng script check-frp-update (có verify + rollback).
-    # snowdreamtech là image community theo release upstream fatedier/frp.
-    image: snowdreamtech/frps:v0.71.0
+    # snowdreamtech dùng tag KHÔNG có chữ v: 0.71.0-debian (WSL kiểm chứng, latest treo entrypoint).
+    image: snowdreamtech/frps:0.71.0-debian
     container_name: sr8-frps
     restart: unless-stopped
     # CHỈ chạy trên VPS Linux. Docker Desktop Win/Mac không hỗ trợ host mode.
@@ -13,9 +13,14 @@ services:
     volumes:
       - ./frps.toml:/etc/frp/frps.toml:ro
       - sr8-data:/var/lib/sr8
+    # snowdreamtech entrypoint là wrapper script: command phải là binary đầy đủ,
+    # ["-c", ...] bị wrapper nuốt (tail -f /dev/null, frps không chạy). WSL kiểm chứng.
+    entrypoint: ["/usr/bin/frps"]
     command: ["-c", "/etc/frp/frps.toml"]
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7500/healthz || wget -qO- http://127.0.0.1:8080/ || exit 1"]
+      # vhost 8080 chỉ listen khi có proxy http đăng ký — check bindPort 7000 mới đúng.
+      # WSL kiểm chứng: image debian-slim có bash/wget/curl đầy đủ.
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/7000' || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -41,10 +46,9 @@ services:
       frps:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:19090/healthz || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      # distroless static:nonroot không có shell/wget — healthcheck từ ngoài bằng curl Win
+      # hoặc docker compose ps. Giữ disable để tránh fail giả.
+      disable: true
   caddy:
     # Production wildcard cần plugin DNS (vd caddy:2-builder + cloudflare) + CF_API_TOKEN trong .env.
     image: caddy:2-alpine

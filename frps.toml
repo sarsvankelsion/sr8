@@ -9,8 +9,9 @@ vhostHTTPSPort = 8443
 # TCP multiplex cho nhiều SSH chung 1 port (P5/P9)
 tcpmuxHTTPConnectPort = 5002
 # QUIC + KCP dự phòng khi mạng xấu (P11)
-quicBindPort = 7000
-kcpBindPort = 7000
+# WSL kiểm chứng: quic/kcp KHÔNG được trùng bindPort (cả 2 giành UDP -> crash exit 1).
+quicBindPort = 7001
+kcpBindPort = 7002
 
 # Subdomain tĩnh: *.tunnel.example.com -> VPS_IP
 subDomainHost = "tunnel.example.com"

@@ -84,9 +84,26 @@ func getenvInt64(k string, d int64) int64 {
 	return d
 }
 
+func writableDir(dir string) bool {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return false
+	}
+	f, err := os.CreateTemp(dir, ".wtest-*")
+	if err != nil {
+		return false
+	}
+	name := f.Name()
+	_ = f.Close()
+	_ = os.Remove(name)
+	return true
+}
+
 func defaultStore(name string) string {
+	// WSL kiểm chứng: volume docker root-owned + user nonroot khiến
+	// /var/lib/sr8 MkdirAll vẫn nil nhưng WriteFile fail -> burn mất tác dụng.
+	// Phải test ghi thật, không writable thì fallback /tmp để fail-safe.
 	for _, base := range []string{"/var/lib/sr8", filepath.Join(mustCwd(), "data")} {
-		if err := os.MkdirAll(base, 0o755); err == nil {
+		if writableDir(base) {
 			return filepath.Join(base, name)
 		}
 	}
