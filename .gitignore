@@ -1,0 +1,15 @@
+# sr8 ignores
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.log
+frps-data/
+caddy-data/
+caddy-config/
+C:\Temp/
+*.tmp
+sealed-used.json
+/tmp/sealed-used.json
+.DS_Store
+Thumbs.db

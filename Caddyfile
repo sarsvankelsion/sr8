@@ -1,0 +1,37 @@
+# Caddyfile — TLS tự động cho *.tunnel.example.com -> frps vhost
+# DNS cần: A tunnel.example.com -> VPS_IP, A *.tunnel.example.com -> VPS_IP
+# Chạy trên VPS Linux. Docker Desktop Win/Mac không hỗ trợ network_mode: host.
+{
+	auto_https off
+}
+
+:80 {
+	@app_tunnel host *.tunnel.example.com tunnel.example.com
+	handle @app_tunnel {
+		reverse_proxy 127.0.0.1:8080
+	}
+	handle {
+		respond "fast-tunnel edge ok" 200
+	}
+}
+
+:443 {
+	# on_demand tiện cho homelab nhưng mở abuse cấp cert bừa bãi.
+	# Production nên chuyển sang wildcard + DNS challenge:
+	#   *.tunnel.example.com {
+	#     tls { dns cloudflare {env.CF_API_TOKEN} }
+	#     reverse_proxy 127.0.0.1:8080
+	#   }
+	tls {
+		on_demand
+	}
+	@app_tunnel host *.tunnel.example.com tunnel.example.com
+	handle @app_tunnel {
+		# Caddy terminate TLS rồi forward plain HTTP về frps vhostHTTPPort.
+		# Không forward về 8443 (vhostHTTPSPort) để tránh double-TLS.
+		reverse_proxy 127.0.0.1:8080
+	}
+	handle {
+		respond "fast-tunnel edge ok" 200
+	}
+}

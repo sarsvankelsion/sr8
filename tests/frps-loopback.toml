@@ -1,0 +1,17 @@
+# frps loopback single-machine — không cần VPS, không cần Docker
+bindPort = 17000
+vhostHTTPPort = 18080
+tcpmuxHTTPConnectPort = 15002
+allowPorts = [
+  { start = 20000, end = 20100 }
+]
+auth.method = "token"
+auth.token = "loopback-test-token-12345678"
+transport.tcpMux = true
+transport.tls.force = false
+webServer.addr = "127.0.0.1"
+webServer.port = 17500
+webServer.user = "admin"
+webServer.password = "admin"
+log.to = "console"
+log.level = "info"

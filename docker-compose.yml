@@ -1,0 +1,32 @@
+services:
+  frps:
+    # snowdreamtech là image community chính thức cho frp, tag theo release upstream.
+    # Đã kiểm chứng cú pháp với v0.71.0 trên Windows (frps verify OK).
+    image: snowdreamtech/frps:v0.71.0
+    container_name: fast-tunnel-frps
+    restart: unless-stopped
+    # network_mode: host CHỈ chạy trên Linux (VPS Oracle). Docker Desktop Win/Mac KHÔNG hỗ trợ host mode.
+    # Muốn test trên đúng 1 máy Win thì đừng dùng compose — chạy loopback trong tests/ (xem tests/README.md).
+    network_mode: host
+    volumes:
+      - ./frps.toml:/etc/frp/frps.toml:ro
+      - ./frps-data:/var/lib/frp
+    command: ["-c", "/etc/frp/frps.toml"]
+  caddy:
+    image: caddy:2-alpine
+    container_name: fast-tunnel-caddy
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy-data:/data
+      - ./caddy-config:/config
+  bore-server:
+    image: ekzhang/bore:latest
+    container_name: fast-tunnel-bore
+    restart: unless-stopped
+    network_mode: host
+    # bore-server nghe control port 7835, cấp remote_port ngẫu nhiên cho demo tạm (P1/P3)
+    # self-host đúng cú pháp README: `bore server`, không có subcommand `server --port`
+    # control port mặc định 7835, tunnel port random trong [1024,65535]
+    command: ["server"]

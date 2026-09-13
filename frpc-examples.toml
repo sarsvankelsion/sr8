@@ -1,0 +1,94 @@
+# frpc-examples.toml — copy từng block theo nhu cầu P1-P12
+serverAddr = "VPS_IP_HOAC_tunnel.example.com"
+serverPort = 7000
+auth.method = "token"
+auth.token = "CHANGE-ME-32-CHARS-MIN"
+transport.tls.enable = true
+transport.tcpMux = true
+
+# P1/P2: web local -> https://demo.tunnel.example.com (Caddy tự cấp TLS)
+[[proxies]]
+name = "web-demo"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 3000
+subdomain = "demo"
+hostHeaderRewrite = "127.0.0.1"
+requestHeaders.set.x-forwarded-proto = "https"
+
+# P5: SSH máy sau NAT -> VPS_IP:22001
+[[proxies]]
+name = "ssh-homelab"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 22
+remotePort = 22001
+
+# P6: Postgres share tạm -> VPS_IP:25432 (đặt password mạnh cho DB)
+[[proxies]]
+name = "pg-share"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 5432
+remotePort = 25432
+transport.bandwidthLimit = "5MB"
+
+# P8: Minecraft Bedrock UDP 19132 -> VPS_IP:31913 (frp giữ nguyên, không cleanup idle như PortBuddy hosted)
+[[proxies]]
+name = "mc-bedrock"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 19132
+remotePort = 31913
+
+# P10-kín: STCP không mở port public, chỉ visitor có secretKey dial được
+[[proxies]]
+name = "secret-ssh"
+type = "stcp"
+secretKey = "CHANGE-ME-STCP-KEY"
+localIP = "127.0.0.1"
+localPort = 22
+
+# P10-P2P: XTCP data trực tiếp client-client, frps chỉ signaling
+[[proxies]]
+name = "p2p-ssh"
+type = "xtcp"
+secretKey = "CHANGE-ME-XTCP-KEY"
+localIP = "127.0.0.1"
+localPort = 22
+
+# P11: LB 2 backend chung remotePort 28080 + healthcheck
+[[proxies]]
+name = "web-ha-1"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8080
+remotePort = 28080
+loadBalancer.group = "web-ha"
+loadBalancer.groupKey = "CHANGE-ME-GROUP-KEY"
+healthCheck.type = "tcp"
+healthCheck.timeoutSeconds = 3
+healthCheck.maxFailed = 3
+healthCheck.intervalSeconds = 10
+
+[[proxies]]
+name = "web-ha-2"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8081
+remotePort = 28080
+loadBalancer.group = "web-ha"
+loadBalancer.groupKey = "CHANGE-ME-GROUP-KEY"
+healthCheck.type = "tcp"
+healthCheck.timeoutSeconds = 3
+healthCheck.maxFailed = 3
+healthCheck.intervalSeconds = 10
+
+# P10 visitor mẫu (đặt ở máy C cần truy cập secret-ssh): mở 127.0.0.1:6000 -> secret-ssh
+[[visitors]]
+name = "secret-ssh-visitor"
+type = "stcp"
+serverName = "secret-ssh"
+secretKey = "CHANGE-ME-STCP-KEY"
+bindAddr = "127.0.0.1"
+bindPort = 6000

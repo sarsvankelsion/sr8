@@ -1,0 +1,46 @@
+# frps.toml — lõi cho mọi P1-P12
+# Chạy trên VPS Linux có IP public (Oracle Always Free). KHÔNG chạy compose này trên Docker Desktop Win/Mac.
+# Đã verify OK bằng `frps verify` trên frp v0.71.0. Test single-machine xem tests/README.md.
+
+bindPort = 7000
+# HTTP vhost cho P1/P2/P7 — Caddy phía trước sẽ reverse về 2 port này
+vhostHTTPPort = 8080
+vhostHTTPSPort = 8443
+# TCP multiplex cho nhiều SSH chung 1 port (P5/P9)
+tcpmuxHTTPConnectPort = 5002
+# QUIC + KCP dự phòng khi mạng xấu (P11)
+quicBindPort = 7000
+kcpBindPort = 7000
+
+# Subdomain tĩnh: *.tunnel.example.com -> VPS_IP
+subDomainHost = "tunnel.example.com"
+# Giới hạn port public cho TCP/UDP thô (P5/P6/P8)
+allowPorts = [
+  { start = 20000, end = 40000 }
+]
+
+# Auth single-token cho team nhỏ. Muốn multi-user thì chuyển sang auth.method = "oidc".
+auth.method = "token"
+auth.token = "CHANGE-ME-32-CHARS-MIN"
+
+# Multiplex + pool cho chịu tải
+transport.tcpMux = true
+transport.maxPoolCount = 5
+# Bắt buộc TLS frpc->frps
+transport.tls.force = true
+
+# Dashboard nội bộ only, ra ngoài qua SSH tunnel
+webServer.addr = "127.0.0.1"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "CHANGE-ME"
+enablePrometheus = true
+
+# SSH gateway: cho client không cài frpc (P1 nhanh như portbuddy)
+# ssh -R :80:127.0.0.1:3000 user@VPS -p 2222
+sshTunnelGateway.bindPort = 2222
+
+# Log ra console cho Docker, file khi chạy binary trực tiếp đổi lại thành "./frps.log"
+log.to = "console"
+log.level = "info"
+log.maxDays = 3

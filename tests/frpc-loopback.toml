@@ -1,0 +1,20 @@
+serverAddr = "127.0.0.1"
+serverPort = 17000
+auth.method = "token"
+auth.token = "loopback-test-token-12345678"
+transport.tcpMux = true
+transport.tls.enable = false
+
+[[proxies]]
+name = "loopback-web"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 18081
+customDomains = ["loopback.test"]
+
+[[proxies]]
+name = "loopback-tcp"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 18082
+remotePort = 20001
