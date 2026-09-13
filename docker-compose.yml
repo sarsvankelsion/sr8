@@ -20,8 +20,12 @@ services:
       timeout: 5s
       retries: 3
   guard:
-    # Guard stdlib python, chạy cùng host network để Caddy reverse 127.0.0.1:19090.
-    image: python:3.12-alpine
+    # guard-go: reverse-proxy + TCP sealed splice, keep-alive pool, stream SSE/WebSocket.
+    # sealed/guard.py giữ lại cho dev/test 1 máy. Production dùng guard-go.
+    build:
+      context: ./guard-go
+      dockerfile: Dockerfile
+    image: sr8-guard:local
     container_name: sr8-guard
     restart: unless-stopped
     network_mode: host
@@ -30,11 +34,9 @@ services:
     environment:
       GUARD_PORT: "19090"
       FRPS_VHOST: "127.0.0.1:8080"
+      TCP_SEAL_PORT: "19091"
     volumes:
-      - ./sealed/guard.py:/app/guard.py:ro
       - sr8-data:/var/lib/sr8
-    working_dir: /app
-    command: ["python", "guard.py"]
     depends_on:
       frps:
         condition: service_started
