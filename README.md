@@ -78,7 +78,13 @@ Open it once → your page. Refresh → `403 link already used`. That is the who
 - `HMAC-SHA256(secret, "name:exp")` — unforgeable without the secret, no DB lookup on the hot path.
 - **Expiry** per link (`exp` unix timestamp). **Single-use** tracked in a JSON store (swap for Redis on multi-instance).
 - Wrong seal, missing seal, expired, replayed — all `403` with no info leak.
-- `seal.py` is 30 lines, stdlib only. Pipe it into anything: `python sealed/seal.py client-a 900`.
+- `seal.py` is stdlib only. Pipe it into anything: `python sealed/seal.py client-a 900`.
+
+### Rotating rooms (shared link that can't be forwarded forever)
+- `/r/<room>/?ticket=..` — one shared URL, ticket = `HMAC(secret, "room:<round>")`, round rotates every `SEAL_ROTATE_SECS` (default 60s).
+- A leaked screenshot/forwarded link dies after ~2 rounds. Guard accepts current + previous round for clock-skew only.
+- `SEAL_ROOM_MAX_USES` caps successful hits per round per room (anti-F5, anti-bot, anti-mass-share). `SEAL_RATE_PER_MIN` throttles seal brute-force per IP.
+- `python sealed/seal.py --room team 60` mints the current ticket. Verified: current `200`, 3-min-old `403`.
 
 ### Anti-leak guard (`sealed/guard.py`, 1 file, stdlib only)
 - Strips inbound `X-Forwarded-*, Forwarded, CF-Connecting-IP, True-Client-IP, X-Real-IP, Referer` — your backend never learns the visitor's IP unless you opt in with `SEAL_FORWARD_IP=1`.
