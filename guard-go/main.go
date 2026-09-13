@@ -330,35 +330,30 @@ func sanitizeLocation(v string) string {
 	}
 	h := strings.ToLower(strings.Trim(u.Hostname(), "[]"))
 	if h == "localhost" || strings.HasSuffix(h, ".localhost") || strings.HasSuffix(h, ".local") || strings.HasSuffix(h, ".internal") {
-		rel := u.Path
-		if rel == "" {
-			rel = "/"
-		}
-		if u.RawQuery != "" {
-			rel += "?" + u.RawQuery
-		}
-		if u.Fragment != "" {
-			rel += "#" + u.Fragment
-		}
-		return rel
+		return "/"
 	}
 	if ip := net.ParseIP(strings.Trim(u.Hostname(), "[]")); ip != nil {
 		if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsMulticast() || ip.IsUnspecified() {
-			rel := u.Path
-			if rel == "" {
-				rel = "/"
-			}
-			if u.RawQuery != "" {
-				rel += "?" + u.RawQuery
-			}
-			if u.Fragment != "" {
-				rel += "#" + u.Fragment
-			}
-			return rel
+			return "/"
 		}
 		return v
 	}
 	return v
+}
+
+// stripRoundTripper xóa header nhạy cảm SAU Director vì ReverseProxy
+// tự append X-Forwarded-For/X-Forwarded-Proto sau Director.
+type stripRoundTripper struct{ base http.RoundTripper }
+
+func (s stripRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	for k := range stripReq {
+		req.Header.Del(http.CanonicalHeaderKey(k))
+	}
+	base := s.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return base.RoundTrip(req)
 }
 
 // ---------- HTTP ----------
@@ -368,6 +363,7 @@ func deny(w http.ResponseWriter, code int, msg string) {
 	h := w.Header()
 	h.Set("Content-Type", "text/plain")
 	h.Set("Content-Length", strconv.Itoa(len(b)))
+	h.Set("Server", "nginx")
 	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Cache-Control", "no-store")
@@ -403,7 +399,7 @@ func proxyHTTP(w http.ResponseWriter, r *http.Request, name string, stripKeys ma
 				req.Header.Del(http.CanonicalHeaderKey(k))
 			}
 		},
-		Transport: &http.Transport{
+		Transport: stripRoundTripper{base: &http.Transport{
 			Proxy:                 http.ProxyFromEnvironment,
 			MaxIdleConns:          200,
 			MaxIdleConnsPerHost:   50,
@@ -411,10 +407,10 @@ func proxyHTTP(w http.ResponseWriter, r *http.Request, name string, stripKeys ma
 			TLSHandshakeTimeout:   10 * time.Second,
 			ResponseHeaderTimeout: 15 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
-		},
+		}},
 		FlushInterval: -1, // stream SSE/WebSocket-friendly, vượt bản Python
 		ModifyResponse: func(resp *http.Response) error {
-			resp.Header.Del("Server")
+			resp.Header.Set("Server", "nginx")
 			if loc := resp.Header.Get("Location"); loc != "" {
 				resp.Header.Set("Location", sanitizeLocation(loc))
 			}
