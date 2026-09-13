@@ -46,12 +46,21 @@ python sealed/seal.py --room team 60
 4. Caddy reverse `*.tunnel.example.com` về guard, không về frps trực tiếp.
 
 ## Kết quả kiểm chứng loopback (frp v0.71.0, Win 11, 2026-09-13)
-- `/t` lần 1: `200`, lần 2 dùng lại: `403 link already used`.
+- `/t` lần 1: `200`, lần 2 dùng lại: `403 link already used` (burn ngay cả khi backend non-200).
 - `/t` sai/thiếu/hết hạn seal: `403`.
-- `/r` ticket hiện tại: `200`, dùng chung nhiều lần trong vòng vẫn `200`.
+- `/r` ticket hiện tại: `200`, dùng chung nhiều lần trong vòng vẫn `200`, multi-value `?x=1&x=2` giữ nguyên.
 - `/r` ticket cách 3 phút (2+ vòng): `403 bad or rotated ticket`.
-- HTTP xuyên `guard -> frps vhost -> backend` giữ nguyên body.
+- HTTP xuyên `guard -> frps vhost -> backend` giữ nguyên body, stream chunk 64KB, cap 50MB.
 - TCP thô frp vẫn độc lập: `127.0.0.1:20001 -> 18082` echo `FRP-TCP-OK`.
+
+## Env guard mở rộng
+- `SEAL_TRUSTED_PROXIES="127.0.0.1"` + Caddy gửi `X-Forwarded-For` thật: rate-limit đúng IP visitor.
+- `SEAL_MAX_BODY_BYTES=10485760`, `SEAL_MAX_RESP_BYTES=52428800`, `SEAL_UPSTREAM_TIMEOUT=15`.
+- Store persistent `/var/lib/sr8` (docker volume `sr8-data`), fallback `./data`, có file-lock + atomic replace.
+- `python scripts/mkroom.py --server VPS --token XXX --local-port 3000 --count 20` sinh `frpc-room.toml`
+  cho `VHOST_HOST="{name}.tunnel.example.com"`. Verify bằng `frpc verify`.
+- Auto-update frp: `.frp-version` + `python scripts/check-frp-update.py --track patch [--apply]`,
+  dry-run mặc định, verify `frps/frpc verify` pass mới bump tag compose. Schedule mẫu `.github/workflows/frp-update.yml`.
 
 ## Giới hạn
 - Guard chỉ bọc HTTP. TCP/UDP thô vẫn dùng frps `remotePort + token` (xem FREE-HOSTS.md).

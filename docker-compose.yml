@@ -1,32 +1,71 @@
 services:
   frps:
-    # snowdreamtech là image community chính thức cho frp, tag theo release upstream.
-    # Đã kiểm chứng cú pháp với v0.71.0 trên Windows (frps verify OK).
+    # Tag pin trong .frp-version. Đổi tag bằng script check-frp-update (có verify + rollback).
+    # snowdreamtech là image community theo release upstream fatedier/frp.
     image: snowdreamtech/frps:v0.71.0
-    container_name: fast-tunnel-frps
+    container_name: sr8-frps
     restart: unless-stopped
-    # network_mode: host CHỈ chạy trên Linux (VPS Oracle). Docker Desktop Win/Mac KHÔNG hỗ trợ host mode.
-    # Muốn test trên đúng 1 máy Win thì đừng dùng compose — chạy loopback trong tests/ (xem tests/README.md).
+    # CHỈ chạy trên VPS Linux. Docker Desktop Win/Mac không hỗ trợ host mode.
+    # Test 1 máy Win: chạy loopback trong tests/ (xem tests/README.md).
     network_mode: host
+    env_file:
+      - .env
     volumes:
       - ./frps.toml:/etc/frp/frps.toml:ro
-      - ./frps-data:/var/lib/frp
+      - sr8-data:/var/lib/sr8
     command: ["-c", "/etc/frp/frps.toml"]
-  caddy:
-    image: caddy:2-alpine
-    container_name: fast-tunnel-caddy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7500/healthz || wget -qO- http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  guard:
+    # Guard stdlib python, chạy cùng host network để Caddy reverse 127.0.0.1:19090.
+    image: python:3.12-alpine
+    container_name: sr8-guard
     restart: unless-stopped
     network_mode: host
+    env_file:
+      - .env
+    environment:
+      GUARD_PORT: "19090"
+      FRPS_VHOST: "127.0.0.1:8080"
+    volumes:
+      - ./sealed/guard.py:/app/guard.py:ro
+      - sr8-data:/var/lib/sr8
+    working_dir: /app
+    command: ["python", "guard.py"]
+    depends_on:
+      frps:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:19090/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  caddy:
+    # Production wildcard cần plugin DNS (vd caddy:2-builder + cloudflare) + CF_API_TOKEN trong .env.
+    image: caddy:2-alpine
+    container_name: sr8-caddy
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy-data:/data
       - ./caddy-config:/config
+    depends_on:
+      guard:
+        condition: service_started
+  # bore-server là sidecar demo tạm, tắt mặc định trên production (profiles).
   bore-server:
     image: ekzhang/bore:latest
-    container_name: fast-tunnel-bore
+    container_name: sr8-bore
     restart: unless-stopped
     network_mode: host
-    # bore-server nghe control port 7835, cấp remote_port ngẫu nhiên cho demo tạm (P1/P3)
-    # self-host đúng cú pháp README: `bore server`, không có subcommand `server --port`
-    # control port mặc định 7835, tunnel port random trong [1024,65535]
+    profiles: ["demo"]
     command: ["server"]
+
+volumes:
+  sr8-data:

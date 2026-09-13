@@ -1,0 +1,25 @@
+name: frp-update-check
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      track:
+        description: "pinned|patch|latest"
+        default: "patch"
+        required: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Dry-run frp update check
+        run: python scripts/check-frp-update.py --track "${{ inputs.track || 'patch' }}"
+      - name: Upload log
+        uses: actions/upload-artifact@v4
+        with:
+          name: frp-update-log
+          path: frp-update.log

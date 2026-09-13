@@ -1,37 +1,39 @@
-# Caddyfile — TLS tự động cho *.tunnel.example.com -> frps vhost
-# DNS cần: A tunnel.example.com -> VPS_IP, A *.tunnel.example.com -> VPS_IP
-# Chạy trên VPS Linux. Docker Desktop Win/Mac không hỗ trợ network_mode: host.
+# Caddyfile — production: wildcard TLS qua DNS challenge, reverse về guard.
+# DNS: A *.tunnel.example.com -> VPS_IP. Guard nghe 127.0.0.1:19090, frps vhost 127.0.0.1:8080.
+# Không dùng on-demand (mở abuse cấp cert). Cần plugin DNS tương ứng + token qua env.
+# Ví dụ Cloudflare: docker build caddy:2-builder cloudflare; env CF_API_TOKEN.
 {
 	auto_https off
 }
 
+# HTTP: redirect về HTTPS, giữ path/query.
 :80 {
 	@app_tunnel host *.tunnel.example.com tunnel.example.com
 	handle @app_tunnel {
-		reverse_proxy 127.0.0.1:8080
+		uri replace ^/(.*)$ https://{http.request.host}/{http.request.uri}
+		redir {http.request.uri} permanent
 	}
 	handle {
-		respond "fast-tunnel edge ok" 200
+		respond "sr8 edge ok" 200
 	}
 }
 
-:443 {
-	# on_demand tiện cho homelab nhưng mở abuse cấp cert bừa bãi.
-	# Production nên chuyển sang wildcard + DNS challenge:
-	#   *.tunnel.example.com {
-	#     tls { dns cloudflare {env.CF_API_TOKEN} }
-	#     reverse_proxy 127.0.0.1:8080
-	#   }
+# Production: wildcard + DNS challenge (đổi dns provider + env token của bạn).
+*.tunnel.example.com, tunnel.example.com {
 	tls {
-		on_demand
+		dns cloudflare {env.CF_API_TOKEN}
 	}
-	@app_tunnel host *.tunnel.example.com tunnel.example.com
-	handle @app_tunnel {
-		# Caddy terminate TLS rồi forward plain HTTP về frps vhostHTTPPort.
-		# Không forward về 8443 (vhostHTTPSPort) để tránh double-TLS.
-		reverse_proxy 127.0.0.1:8080
+	# Guard là cửa duy nhất ra ngoài. frps KHÔNG public trực tiếp.
+	reverse_proxy 127.0.0.1:19090 {
+		# Giữ X-Forwarded-For để guard rate-limit đúng IP thật.
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto {http.request.scheme}
 	}
-	handle {
-		respond "fast-tunnel edge ok" 200
+	log {
+		output stdout
+		format json
 	}
 }
+
+# Homelab fallback (không có DNS API): mở file Caddyfile.homelab riêng,
+# dùng on-demand + ask endpoint nội bộ. Không bật fallback này trên production.
