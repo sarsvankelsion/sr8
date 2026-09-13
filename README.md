@@ -1,28 +1,17 @@
-<div align="center">
+```text
+                 ______
+  _____________ /  __  \
+ /  ___/\_  __ \>      <
+ \___ \  |  | \/   --   \
+/____  > |__|  \______  /
+     \/               \/
+```
 
-<img src="assets/header.svg" alt="SR8" width="640" />
+**Share localhost once. The link dies after one click.**
 
-<h3 style="font-family: Newsreader, Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: #6B6259; margin-top: 0;">Share localhost once. The link dies after one click.</h3>
+[Why sr8](#why-sr8) · [Demo](#30-second-demo) · [Features](#features) · [Use cases](#use-cases) · [Quickstart](#quickstart) · [Security](#security-model) · [Free hosts](#free-hosts) · [FAQ](#faq)
 
-<p>
-  <a href="#why-sr8">Why sr8</a> ·
-  <a href="#30-second-demo">Demo</a> ·
-  <a href="#features">Features</a> ·
-  <a href="#use-cases">Use cases</a> ·
-  <a href="#quickstart">Quickstart</a> ·
-  <a href="#security-model">Security</a> ·
-  <a href="#free-hosts">Free hosts</a> ·
-  <a href="#faq">FAQ</a>
-</p>
-
-<p>
-  <img src="https://img.shields.io/badge/frp-v0.71.0_verified-38BDF8?style=flat-square" alt="frp v0.71.0" />
-  <img src="https://img.shields.io/badge/python-stdlib_only-3776AB?style=flat-square" alt="stdlib only" />
-  <img src="https://img.shields.io/badge/license-MIT-D97757?style=flat-square" alt="MIT" />
-  <img src="https://img.shields.io/badge/tests-loopback_passing-16A34A?style=flat-square" alt="tests" />
-</p>
-
-</div>
+![frp v0.71.0](https://img.shields.io/badge/frp-v0.71.0_verified-38BDF8?style=flat-square) ![stdlib only](https://img.shields.io/badge/python-stdlib_only-3776AB?style=flat-square) ![MIT](https://img.shields.io/badge/license-MIT-D97757?style=flat-square) ![tests](https://img.shields.io/badge/tests-loopback_passing-16A34A?style=flat-square)
 
 > **One-liner:** sr8 is a thin sealing layer over [frp](https://github.com/fatedier/frp). frp moves the bytes. sr8 decides **who gets to see them, once, and for how long** — with a signed link instead of a password, a config edit, or a new tunnel per share.
 
