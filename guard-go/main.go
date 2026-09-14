@@ -31,6 +31,7 @@ type Config struct {
 	VhostAddr      string
 	VhostHost      string
 	Secret         string
+	SealMode       string // "sealed" (mặc định) | "open" (bypass xác thực, vẫn giữ strip/rate-limit)
 	UsedDB         string
 	RoomDB         string
 	SingleUse      bool
@@ -121,6 +122,7 @@ func loadConfig() Config {
 		VhostAddr:      getenv("FRPS_VHOST", "127.0.0.1:18080"),
 		VhostHost:      getenv("VHOST_HOST", "loopback.test"),
 		Secret:         getenv("SEAL_SECRET", "CHANGE-ME-SEAL-SECRET-32-CHARS"),
+		SealMode:       getenv("SEAL_MODE", "sealed"),
 		SingleUse:      getenv("SEAL_SINGLE_USE", "1") == "1",
 		RotateSecs:     getenvInt64("SEAL_ROTATE_SECS", 60),
 		RoomMaxUses:    getenvInt("SEAL_ROOM_MAX_USES", 0),
@@ -160,8 +162,15 @@ func loadConfig() Config {
 	if c.RotateSecs <= 0 {
 		c.RotateSecs = 60
 	}
+	mode := strings.ToLower(strings.TrimSpace(c.SealMode))
+	if mode != "open" && mode != "sealed" {
+		mode = "sealed"
+	}
+	c.SealMode = mode
 	return c
 }
+
+func isOpen() bool { return cfg.SealMode == "open" }
 
 // ---------- HMAC ----------
 
@@ -501,10 +510,22 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Path == "/healthz" {
-		deny(w, 200, "guard ok")
+		deny(w, 200, "guard ok mode="+cfg.SealMode)
 		return
 	}
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if isOpen() {
+		// Chế độ open: bypass xác thực seal/ticket, vẫn giữ rate-limit,
+		// strip header, sanitize Location, fingerprint. /t/<name>/... hoặc
+		// /r/<room>/... dùng parts[1] làm tên; path khác dùng tên "open".
+		name := "open"
+		strip := map[string]bool{"seal": true, "exp": true, "ticket": true}
+		if len(parts) >= 2 && (parts[0] == "r" || parts[0] == "t") {
+			name = parts[1]
+		}
+		proxyHTTP(w, r, name, strip)
+		return
+	}
 	if len(parts) >= 2 && parts[0] == "r" {
 		handleRoom(w, r, parts[1])
 		return
@@ -566,6 +587,21 @@ func verifyTCPLine(line string) (string, bool) {
 
 func handleTCPConn(client net.Conn) {
 	defer client.Close()
+	if isOpen() {
+		backend, err := net.DialTimeout("tcp", cfg.TCPBackend, 10*time.Second)
+		if err != nil {
+			_, _ = client.Write([]byte("502 upstream fail\n"))
+			return
+		}
+		defer backend.Close()
+		log.Printf("tcp open -> %s", cfg.TCPBackend)
+		go func() {
+			_, _ = io.Copy(backend, client)
+			_ = backend.(*net.TCPConn).CloseWrite()
+		}()
+		_, _ = io.Copy(client, backend)
+		return
+	}
 	_ = client.SetDeadline(time.Now().Add(cfg.TCPHandshakeTO))
 	br := bufio.NewReader(client)
 	line, err := br.ReadString('\n')

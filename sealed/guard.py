@@ -23,6 +23,7 @@ FRPS_VHOST = os.environ.get("FRPS_VHOST", "127.0.0.1:18080")
 # Loopback test để "loopback.test". Production để "{name}.tunnel.example.com".
 VHOST_HOST = os.environ.get("VHOST_HOST", "loopback.test")
 SEAL_SECRET = os.environ.get("SEAL_SECRET", "CHANGE-ME-SEAL-SECRET-32-CHARS")
+SEAL_MODE = os.environ.get("SEAL_MODE", "sealed").lower().strip()  # "sealed" | "open"
 
 # Store persistent: ưu tiên volume /var/lib/sr8 (docker), fallback ./data (chạy tay), cuối cùng tempdir.
 def _default_store(name):
@@ -314,7 +315,14 @@ class Handler(BaseHTTPRequestHandler):
         parts = u.path.strip("/").split("/")
         # GET /healthz -> ok không cần seal (cho monitor nội bộ)
         if u.path == "/healthz":
-            return self._deny(200, "guard ok")
+            return self._deny(200, f"guard ok mode={SEAL_MODE}")
+        if SEAL_MODE == "open":
+            name = "open"
+            if len(parts) >= 2 and parts[0] in ("r", "t"):
+                name = parts[1]
+            rest = parts[2:] if (len(parts) >= 2 and parts[0] in ("r", "t")) else parts
+            qs = urllib.parse.parse_qs(u.query, keep_blank_values=True)
+            return self._proxy(name, rest, u, qs, strip_keys=("seal", "exp", "ticket"))
         if len(parts) >= 2 and parts[0] == "r":
             return self._handle_room(parts[1], u)
         if len(parts) >= 2 and parts[0] == "t":
