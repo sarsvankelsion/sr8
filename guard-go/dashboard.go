@@ -524,7 +524,7 @@ document.getElementById('f-ports').innerHTML=esc(bindAddr)+' '+(bindUp?'<span cl
 document.getElementById('f-dash').textContent=dashUp?'up':'down';
 document.getElementById('s-used').textContent=d.store.used_links;
 document.getElementById('s-room').textContent=d.store.room_rounds;
-document.getElementById('f-link').textContent=d.frps.dash_7500?'127.0.0.1:7500 (ssh tunnel)':'-';
+document.getElementById('f-link').textContent=dashUp?(d.frps.dash_addr||'127.0.0.1:7500')+' (ssh tunnel)':'-';
 }).catch(e=>{});
 api('/admin/api/logs?limit=30').then(d=>{
 document.getElementById('logs').innerHTML=(d.logs||[]).map(l=>'<tr><td>'+esc(l.ts)+'</td><td class=mono>'+esc(l.ip)+'</td><td>'+esc(l.method)+'</td><td class=mono>'+esc(l.path)+'</td><td>'+l.code+'</td><td>'+esc(l.kind)+'</td></tr>').join('');
