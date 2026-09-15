@@ -28,6 +28,7 @@ cd /opt/sr8
 # Sinh token ngẫu nhiên mạnh
 SEAL_SEC=$(python3 -c "import secrets; print(secrets.token_hex(24))")
 FRP_TOK=$(python3 -c "import secrets; print(secrets.token_hex(24))")
+ADMIN_TOK=$(python3 -c "import secrets; print(secrets.token_hex(16))")
 
 cat > .env <<EOF
 # SEAL_MODE: "open" = dịch vụ mở, ai cũng vào được không cần seal/ticket
@@ -48,6 +49,14 @@ TCP_BACKEND=127.0.0.1:18082
 CF_API_TOKEN=dummy
 FRP_TOKEN=${FRP_TOK}
 FRP_TRACK=patch
+ADMIN_TOKEN=${ADMIN_TOK}
+PUBLIC_BASE=
+FRPS_BIND_ADDR=127.0.0.1:7000
+FRPS_DASH_ADDR=127.0.0.1:7500
+FRPS_DASH_USER=admin
+FRPS_DASH_PASS=admin
+SR8_VERSION=v0.71.0-guard
+ADMIN_ENV_FILE=/opt/sr8/.env
 EOF
 
 # Cập nhật frps.toml với token thật + port tách biệt
@@ -92,6 +101,8 @@ echo "  - Mode: SEAL_MODE=open (dịch vụ mở, không cần seal)"
 echo "  - frps port: 7000 (bindPort cho client kết nối)"
 echo "  - guard HTTP: 19090 (reverse proxy về vhost 8080)"
 echo "  - guard TCP: 19091 (TCP proxy mở)"
+echo "  - DASHBOARD: http://127.0.0.1:19090/admin/ (ssh -L 19090:127.0.0.1:19090 root@VPS)"
+echo "  - ADMIN_TOKEN: ${ADMIN_TOK}"
 echo "  - FRP_TOKEN: ${FRP_TOK}"
 echo "  - SEAL_SECRET: ${SEAL_SEC}"
 echo "  - Bật lại seal: sửa SEAL_MODE=sealed trong /opt/sr8/.env"

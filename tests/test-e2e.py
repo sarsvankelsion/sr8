@@ -184,7 +184,49 @@ check("tcp-room-ok", b"GO-TCP-OK:hi-room" in got, f"got={got!r}")
 got = tcp_handshake("bad:1:bad", b"x")
 check("tcp-bad-403", got == b"403 bad seal\n", f"got={got!r}")
 
-# 11. mkroom sinh config frpc verify được (cần frpc.exe ở C:\Temp\frp\frpc.exe trên Win)
+# 11. admin dashboard API (chạy trên cùng GUARD_PORT /admin/)
+import json as _json2
+ADMIN = GUARD + "/admin/api"
+def admin_post(path, obj):
+    data = _json2.dumps(obj).encode()
+    req = urllib.request.Request(ADMIN + path, data=data, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status, _json2.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        return e.code, {}
+    except Exception:
+        return -1, {}
+s, _, hb = http_get(GUARD + "/admin/")
+check("admin-ui", s == 200 and b"sr8 dashboard" in hb, f"got={s}")
+s, d = admin_post("/status", {}) if False else (http_get(ADMIN + "/status")[0], __import__("json").loads(http_get(ADMIN + "/status")[2].decode() or "{}"))
+check("admin-status", s == 200 and d.get("mode") in ("open", "sealed") and "counters" in d, f"got={s}")
+s, d = admin_post("/mint", {"name": "admintest", "ttl": 300})
+ok_mint = s == 200 and d.get("link", "").startswith(GUARD + "/t/admintest/")
+check("admin-mint", ok_mint, f"got={s}")
+if ok_mint:
+    s, _, _ = http_get(d["link"])
+    # mode sealed: 200 lần đầu (burn ngay), open: 200 luôn
+    check("admin-mint-link", s == 200, f"got={s}")
+s, d = admin_post("/room", {"room": "adminroom"})
+ok_room = s == 200 and d.get("link", "").startswith(GUARD + "/r/adminroom/")
+check("admin-room", ok_room, f"got={s}")
+s, _, lb = http_get(ADMIN + "/logs?limit=5")
+try:
+    lj = _json2.loads(lb.decode())
+    ok_logs = s == 200 and isinstance(lj.get("logs"), list)
+except Exception:
+    ok_logs = False
+check("admin-logs", ok_logs, f"got={s}")
+s, _, pb = http_get(ADMIN + "/proxies")
+try:
+    pj = _json2.loads(pb.decode())
+    ok_prox = s == 200 and pj.get("reachable") is True and "proxy/http" in pj
+except Exception:
+    ok_prox = False
+check("admin-proxies", ok_prox, f"got={s}")
+
+# 12. mkroom sinh config frpc verify được (cần frpc.exe ở C:\Temp\frp\frpc.exe trên Win)
 frpc = r"C:\Temp\frp\frpc.exe"
 room_toml = os.path.join(ROOT, "tests", "room-autotest.toml")
 r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "mkroom.py"),

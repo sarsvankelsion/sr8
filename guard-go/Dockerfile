@@ -1,6 +1,6 @@
 FROM golang:1.23-alpine AS build
 WORKDIR /src
-COPY go.mod main.go ./
+COPY go.mod main.go dashboard.go ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /guard-go .
 
 # WSL kiểm chứng: distroless static:nonroot + volume docker root-owned khiến

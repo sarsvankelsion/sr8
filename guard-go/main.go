@@ -44,6 +44,14 @@ type Config struct {
 	TCPSealPort    string
 	TCPBackend     string
 	TCPHandshakeTO time.Duration
+	AdminToken     string // yêu cầu cho mọi /admin/* khi khác rỗng
+	PublicBase     string // base URL công khai để mint link, vd https://tunnel.example.com
+	FrpsDashAddr   string // địa chỉ dashboard frps nội bộ, vd 127.0.0.1:7500
+	FrpsDashUser   string
+	FrpsDashPass   string
+	FrpsBindAddr   string // để status check động (production 127.0.0.1:7000, loopback 127.0.0.1:17000)
+	Version        string
+	StartTime      time.Time
 }
 
 var cfg Config
@@ -53,6 +61,7 @@ var (
 	muRoom sync.Mutex
 	muRate sync.Mutex
 	rate   = map[string]*rateBucket{}
+	muCfg  sync.RWMutex
 )
 
 type rateBucket struct {
@@ -132,6 +141,14 @@ func loadConfig() Config {
 		TCPSealPort:    getenv("TCP_SEAL_PORT", "19091"),
 		TCPBackend:     getenv("TCP_BACKEND", "127.0.0.1:18082"),
 		TCPHandshakeTO: 5 * time.Second,
+		AdminToken:     getenv("ADMIN_TOKEN", ""),
+		PublicBase:     strings.TrimRight(getenv("PUBLIC_BASE", ""), "/"),
+		FrpsDashAddr:   getenv("FRPS_DASH_ADDR", "127.0.0.1:7500"),
+		FrpsDashUser:   getenv("FRPS_DASH_USER", ""),
+		FrpsDashPass:   getenv("FRPS_DASH_PASS", ""),
+		FrpsBindAddr:   getenv("FRPS_BIND_ADDR", "127.0.0.1:7000"),
+		Version:        getenv("SR8_VERSION", "dev"),
+		StartTime:      time.Now(),
 	}
 	used := getenv("SEAL_USED_DB", "")
 	if used == "" {
@@ -170,7 +187,17 @@ func loadConfig() Config {
 	return c
 }
 
-func isOpen() bool { return cfg.SealMode == "open" }
+func isOpen() bool {
+	muCfg.RLock()
+	defer muCfg.RUnlock()
+	return cfg.SealMode == "open"
+}
+
+func currentMode() string {
+	muCfg.RLock()
+	defer muCfg.RUnlock()
+	return cfg.SealMode
+}
 
 // ---------- HMAC ----------
 
@@ -510,7 +537,11 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Path == "/healthz" {
-		deny(w, 200, "guard ok mode="+cfg.SealMode)
+		deny(w, 200, "guard ok mode="+currentMode())
+		return
+	}
+	if r.URL.Path == "/admin" || r.URL.Path == "/admin/" || strings.HasPrefix(r.URL.Path, "/admin/api/") {
+		handleAdmin(w, r)
 		return
 	}
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -589,6 +620,7 @@ func handleTCPConn(client net.Conn) {
 	defer client.Close()
 	if isOpen() {
 		backend, err := net.DialTimeout("tcp", cfg.TCPBackend, 10*time.Second)
+		tcpStats(err == nil)
 		if err != nil {
 			_, _ = client.Write([]byte("502 upstream fail\n"))
 			return
@@ -609,6 +641,7 @@ func handleTCPConn(client net.Conn) {
 		return
 	}
 	who, ok := verifyTCPLine(line)
+	tcpStats(ok)
 	if !ok {
 		_, _ = client.Write([]byte("403 bad seal\n"))
 		return
@@ -654,11 +687,11 @@ func main() {
 	go serveTCP()
 	srv := &http.Server{
 		Addr:              "127.0.0.1:" + cfg.GuardPort,
-		Handler:           http.HandlerFunc(httpHandler),
+		Handler:           withStats(http.HandlerFunc(httpHandler)),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
-	log.Printf("guard-go :%s -> %s single_use=%v rotate=%ds room_max=%d tcp_seal=:%s->%s",
-		cfg.GuardPort, cfg.VhostAddr, cfg.SingleUse, cfg.RotateSecs, cfg.RoomMaxUses, cfg.TCPSealPort, cfg.TCPBackend)
+	log.Printf("guard-go :%s -> %s mode=%s single_use=%v rotate=%ds room_max=%d tcp_seal=:%s->%s admin=%v",
+		cfg.GuardPort, cfg.VhostAddr, currentMode(), cfg.SingleUse, cfg.RotateSecs, cfg.RoomMaxUses, cfg.TCPSealPort, cfg.TCPBackend, cfg.AdminToken != "")
 	log.Fatal(srv.ListenAndServe())
 }
