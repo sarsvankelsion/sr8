@@ -1,6 +1,7 @@
-# guard-go — bản Go của Sealed Guard + TCP sealed splice
+# guard-go — bản Go của Sealed Guard + TCP sealed splice + admin dashboard
 
 Port Go của `sealed/guard.py`, stdlib only, 1 binary tĩnh ~10MB.
+Tích hợp dashboard quản trị trên cùng GUARD_PORT dưới `/admin/`.
 Giữ nguyên mọi check HTTP `/t` + `/r` (HMAC, expiry, burn-on-valid, rotating ticket,
 quota vòng, rate-limit, strip header, sanitize Location), đồng thời sửa 5 điểm Python thua frp:
 
@@ -31,3 +32,22 @@ Docker production dùng `guard-go/Dockerfile` (multi-stage, distroless).
 
 - `/t` lần 1 `200`, lần 2 `403`; `/r` ticket hiện tại `200`.
 - TCP sealed: `name:exp:seal\n + hello-go` qua `:19091` về backend `:18082` trả `GO-TCP-OK:hello-go`.
+
+## Admin dashboard (`/admin/`)
+
+Tích hợp trong guard-go, stdlib only, UI HTML inline không dep ngoài.
+Guard chỉ bind `127.0.0.1` — muốn public qua Caddy thì bắt buộc `ADMIN_TOKEN`.
+
+- `GET /admin/` — UI: status, counters, frps ports, mint `/t/`, ticket `/r/`,
+  toggle `open/sealed`, bảng tunnels, 30 request gần nhất (poll 5s).
+- `GET /admin/api/status` — mode, version, uptime, counters, store, port-check.
+- `POST /admin/api/mint` `{name, ttl}` — link sealed `/t/`.
+- `POST /admin/api/room` `{room}` — ticket `/r/` vòng hiện tại.
+- `POST /admin/api/toggle` `{mode}` — đổi runtime + persist `SEAL_MODE` vào `ADMIN_ENV_FILE`.
+- `GET /admin/api/logs?limit=` — 200 request gần nhất.
+- `GET /admin/api/proxies` — đọc frps dashboard (`/api/serverinfo`, `/api/proxy/*`),
+  yêu cầu `FRPS_DASH_USER/PASS` khớp `webServer.user/password` trong `frps.toml`.
+
+Env: `ADMIN_TOKEN`, `PUBLIC_BASE`, `FRPS_BIND_ADDR` (mặc định `127.0.0.1:7000`,
+loopback test `127.0.0.1:17000`), `FRPS_DASH_ADDR/USER/PASS`, `SR8_VERSION`,
+`ADMIN_ENV_FILE`. Auth: `?token=` hoặc `X-Admin-Token` hoặc `Bearer`.

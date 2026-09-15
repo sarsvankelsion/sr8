@@ -29,6 +29,7 @@ cd /opt/sr8
 SEAL_SEC=$(python3 -c "import secrets; print(secrets.token_hex(24))")
 FRP_TOK=$(python3 -c "import secrets; print(secrets.token_hex(24))")
 ADMIN_TOK=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+DASH_PASS=$(python3 -c "import secrets; print(secrets.token_hex(12))")
 
 cat > .env <<EOF
 # SEAL_MODE: "open" = dịch vụ mở, ai cũng vào được không cần seal/ticket
@@ -54,14 +55,15 @@ PUBLIC_BASE=
 FRPS_BIND_ADDR=127.0.0.1:7000
 FRPS_DASH_ADDR=127.0.0.1:7500
 FRPS_DASH_USER=admin
-FRPS_DASH_PASS=admin
+FRPS_DASH_PASS=${DASH_PASS}
 SR8_VERSION=v0.71.0-guard
 ADMIN_ENV_FILE=/opt/sr8/.env
 EOF
 
-# Cập nhật frps.toml với token thật + port tách biệt
+# Cập nhật frps.toml với token thật + port tách biệt + đồng bộ dashboard password
 sed -i "s/auth.token = .*/auth.token = \"${FRP_TOK}\"/" frps.toml
 sed -i 's/transport.tls.force = true/transport.tls.force = false/' frps.toml
+sed -i "s/webServer.password = .*/webServer.password = \"${DASH_PASS}\"/" frps.toml
 
 echo "=== 3. Build guard-go và khởi động dịch vụ ==="
 docker compose build guard
@@ -103,6 +105,7 @@ echo "  - guard HTTP: 19090 (reverse proxy về vhost 8080)"
 echo "  - guard TCP: 19091 (TCP proxy mở)"
 echo "  - DASHBOARD: http://127.0.0.1:19090/admin/ (ssh -L 19090:127.0.0.1:19090 root@VPS)"
 echo "  - ADMIN_TOKEN: ${ADMIN_TOK}"
+echo "  - FRPS_DASH_PASS: ${DASH_PASS}"
 echo "  - FRP_TOKEN: ${FRP_TOK}"
 echo "  - SEAL_SECRET: ${SEAL_SEC}"
 echo "  - Bật lại seal: sửa SEAL_MODE=sealed trong /opt/sr8/.env"
